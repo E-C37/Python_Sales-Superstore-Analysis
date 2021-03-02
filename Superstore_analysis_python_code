@@ -1,9 +1,5 @@
 ## Project: Sales Superstore A-to-Z-Market Exploratory Data Analysis with Python 
 
-
-#### Emilien Chollet
-#### Polina Haan-Shabarova
-
 import pandas as pd
 
 from matplotlib import pyplot as plt
