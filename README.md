@@ -21,8 +21,3 @@ Analyze this dataset using a python jupyter notebook and present at least 5 key
 points that make this business profitable or not. Each key point could consist of
 a visualization or a clear aggregated table for instance. You can use Jupyter
 markdown paragraphs to clearly explain each output of your analysis.
-Each project group must have a maximum of 3 members.
-The deadline for sending your complete python notebook file for each group is
-Friday February 19th, 2021 at midnight. Upload your Jupyter notebook directly
-on the dedicated space on Campus (at the beginning of your notebook, make
-sure to provide the names of all the members of your group).
