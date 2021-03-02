@@ -1,0 +1,573 @@
+## Project: Sales Superstore A-to-Z-Market Exploratory Data Analysis with Python 
+
+
+#### Emilien Chollet
+#### Polina Haan-Shabarova
+
+import pandas as pd
+
+from matplotlib import pyplot as plt
+import numpy as np
+import seaborn as sb
+
+# Cleaning the data
+
+df=pd.read_csv('sales.csv')
+
+Lest's take a look at the content of the dataframe.
+
+df.head(10)
+
+df.info()
+
+Dataframe has 21 variables and 9994 rows.
+
+There are no missing values. Nevertheless, the variables Ship date and Order date are dates and not strings. We need to change the data type:
+
+df['Order Date'] = pd.to_datetime(df['Order Date'], format='%d/%m/%Y')
+df['Ship Date'] = pd.to_datetime(df['Ship Date'], format='%d/%m/%Y')
+df.info()
+
+Before starting our analysis we need to understand what each row and column represent. 
+
+One row represents 1 product by order by customer. This information is important if later we want to analyse cunsumer behaviour by grouping rows (group by Order_ID, than by Customer_ID).  
+
+# Data enrichement
+
+There are 2 columns built using formulars that we need to understand. 
+
+###### Sales = Price * Quantity
+
+###### Profit = Sales - Expenses
+
+We need to create new variables  : 
+
+###### Profit ratio = Profit/Sales : this variable will help us to judge the ability of the business to manufacture goods cost-effectively and to set reasonalbe price points.
+
+###### Price = Sales/Quantity : this variable will give us an idea about the price distribution and market segment. 
+
+### Adding columns
+
+df['Price']=df.Sales/df.Quantity
+
+df['Profit ratio_single sale']=df.Profit/df.Sales
+
+df.head()
+
+# Analyse the profit of different products 
+
+### Profit ratio distribution analysis
+
+To start our profit analysis, we want to know the global profit ratio and the profit ratio distribution.
+
+Global_profit_ratio = sum(df['Profit'])/sum(df['Sales'])
+print(Global_profit_ratio)
+
+The global profit ratio is equal to 12%, it is a good profit margin. 
+
+plt.figure( figsize=(15,6))
+chart=sb.boxplot(x=df['Profit ratio_single sale'])
+chart.set_title('Profit ratio boxplot')
+plt.show()
+
+We can also build a Histogram.
+
+plt.figure( figsize=(10,6))
+chart=sb.distplot(df['Profit ratio_single sale'], hist=True)
+chart.set_title('Profit ratio histogram')
+plt.show()
+
+As we can see, the majority of the products have positive profit ratio between 0 and 0.5. However, some products have negative profit ratio, it can be the result of different factors : high expenses, low price, high discount, low sales.
+
+On one hand, our objective is to maintain and consolidate the current strategy for all products with high profit ratio. On the other hand, we need to identify the products with negative profit ratio and find the reasons why they are less profitable. According to the result of our analysis we will decide to change or not the strategy for these products or not. 
+
+### Analysis of categories
+
+profit_ratio_by_category=df.groupby(['Category']).agg(Total_profit=('Profit','sum'),Total_sales=('Sales','sum')).reset_index()
+profit_ratio_by_category['Profit_ratio']=profit_ratio_by_category['Total_profit']/profit_ratio_by_category['Total_sales']
+print(profit_ratio_by_category)
+
+sb.barplot(data=profit_ratio_by_category,x='Category',y='Profit_ratio',ci=None)
+
+Furniture is much less profitable than Office supplies and Technology.
+Now we want to increase the granularity of the plot to analyse the profitability of each sub-category. 
+
+### Analysis of sub-categories
+
+#### Profit ratio analysis
+
+profit_ratio_by_sub_category=df.groupby(['Sub-Category','Category']).agg(Total_profit=('Profit','sum'),Total_sales=('Sales','sum')).reset_index()
+profit_ratio_by_sub_category['Profit_ratio']=profit_ratio_by_sub_category['Total_profit']/profit_ratio_by_sub_category['Total_sales']
+profit_ratio_by_sub_category=profit_ratio_by_sub_category.sort_values(by='Profit_ratio',ascending=False).reset_index(drop=True)
+print(profit_ratio_by_sub_category)
+
+plt.figure( figsize=(16,8))
+sb.barplot(data=profit_ratio_by_sub_category,x='Sub-Category',y='Profit_ratio', hue='Category',ci=None)
+
+The less profitable sub-categories are Tables and Bookcases. The most profitable are Labels, Paper, Evelopes.
+
+Let's compare the average price of all these sub-categories. 
+
+#### Price analysis
+
+sub_categories_comparison = df.groupby('Sub-Category').agg(mean_price=('Price', 'mean'), avg_discount=('Discount','mean')).reset_index()
+sub_categories_comparison = sub_categories_comparison.sort_values(by='mean_price').reset_index(drop=True)
+sub_categories_comparison
+
+def highlight(df):
+    if df['Sub-Category'] in ['Labels','Paper','Envelopes','Copiers','Fasteners']:
+        return ['background-color: green']*len(df)
+    elif df['Sub-Category'] in ['Tables','Machines','Bookcases','Chairs','Supplies']:
+        return ['background-color: red']*len(df)
+    else:
+        return ['background-color: white']*len(df)
+
+sub_categories_comparison.style.apply(highlight, axis=1)
+
+Let's take a look at top 5 profitable products. Labels, Paper, Envelops and Fasteners are cheap products. Copier is the most expensive product. 
+Let's take a look at 5 less profitable products. Tables, Machines, Bookcases and Chairs can be considered as more expensive products. 
+
+We can conclude that the most profitable products are cheap products which don't require a lot of materials and complexe texhnologies to be produced. The less profitable products are more complex, they require more materials, technologies and labour force to be manufactured but even though their price is higher it seems to be insufficient to cover all the costs. The only exception are Copiers.
+
+We can also see that the higher is the price, the higher is the discount.
+
+Now let's take a look at the popularity of each type of products. 
+
+#### Popularity analysis
+
+sub_categories_popularity = df.groupby('Sub-Category').agg(count_orders=('Product ID', 'count'), mean_quantity=('Quantity','mean')).reset_index()
+sub_categories_popularity = sub_categories_popularity.sort_values(by='count_orders',ascending=False).reset_index(drop=True)
+sub_categories_popularity
+
+In average people buy 3 products by order. We can see that the most popular products are profitable (Profit ratio between 10% and 20%) and have a median average price. In general, expensive products are less popular.
+
+Let's see how much profit brings each category. 
+
+#### Profit analysis
+
+sub_categories_profit = df.groupby('Sub-Category').agg(sum_profit=('Profit','sum')).reset_index()
+sub_categories_profit = sub_categories_profit.sort_values(by='sum_profit',ascending=False).reset_index(drop=True)
+sub_categories_profit
+
+Let's analyse the 3 previous tables.
+
+Copiers : the most expensive and the less popular product, but its is very profitable and brings the most money to the company. This sub-category is very important for the business, the company has already a good commercial strategy for this sub-category but it can be improved by increasing sales.
+
+Phones : popular product with high price and good profitability. This sub-category is performing well.
+
+Accessories : popular product with median price and high profitability. This sub-category is performing well.
+
+Paper : very popular and cheap product with very high profitability. This sub-category is performing well, but in avarage people buy 3 products by order. Because paper is very cheap and popular product, the company can easily increase the average number of units by order. For example, the company can propose 2+1 and 5+2 discount.
+
+Binders : the most popular product with median price and profitability. One of the reasons of it's popularity can be a high discount.This sub-category is performing well.
+
+Chairs: it is not the most profitable category but because the price is high and the the number of orders is relativly high this sub-category brings a lot of money. 
+
+Storage : popular product with relativly high price and very small discount. This sub-category doesn't have the best profitability but it brings money to the business. The sub-strategy performance is good.
+
+Furnishings : the most profitable product in category "Furniture". It is popular and relativly cheap. The strategy can be improved by increasing the number of products by order.
+
+Envelops/Labels : very profitable products with low price. However, they are not very popular. Company should increase the number of orders in these sub-categories.
+
+Machines : expensive products with low profitability and popularity. This product don't bring a lot of money to the company. This sub-categoty is not performing well.
+
+Fasteners : the cheapest product with high profitability but low popularity. If the company will not sell machines anymore, fasteners should not be sold neither.
+
+Supplies : the sub-category is not profitable, it has a median price and low popularity. The sub-categoty is not performing well.
+
+Bookcases : the sub-category is not profitable and not very popular. It's price is already high. The sub-category is not performing well.
+
+Tables : the sub-category is not profitable and expensive. The sub-category is not performing well.
+
+#### Discount analysis
+
+Let's analyse discount sensibility of buyers in each sub-category.
+We will create a new column "Discount_2":
+   - if the discount = 0 --> "No"
+   - if the discount > 0 --> "Yes".
+
+myfunction=lambda x: "Yes" if x>0 else "No"
+
+df['Discount_2']=df.Discount.apply(myfunction)
+df.head(10)
+
+Now we can count the number of units sold in each sub-category with and withount discount.
+
+discount_table = df.groupby(["Discount_2","Sub-Category"]).agg(sum_products_sold=('Quantity','sum')).reset_index()
+discount_table_pivot=discount_table.pivot(columns='Discount_2',
+                                          index='Sub-Category',
+                                          values='sum_products_sold'
+                                          )
+discount_table_pivot['% No']= discount_table_pivot.No/(discount_table_pivot.No+discount_table_pivot.Yes)*100
+discount_table_pivot['% Yes']= discount_table_pivot.Yes/(discount_table_pivot.No+discount_table_pivot.Yes)*100
+discount_table_pivot
+
+Discount sensible sub-categories are Binders, Bookcases, Chairs, Copiers, Tables.
+We made a hypothesis that the popularity of Binders is due to the discount, it is true. The company should keep the same commercial stategy for this sub-category because the high discount increases the sales and brings profit.
+
+We saw that the profitability and the popularity of Bookcases was low. To increase the profitability the company needs to increase price (but it is already high) or dicrease the discount (but most of the buyers seem to be motivated by the high discount which is around 20%).
+
+Most of the sales of copiers are motivated by the discount. This sub-categoty is already very profitable but not enough popular. The average discount is 16%, the company can increase the discount even more to motivate people to buy more copiers. The products will remain profitable and bring more money to the company.
+
+We said that chairs are expensive products and have relativly high discount (17%), we can see that most of the sales are motivated by the discount. This category is very important for the company because it brings a lot of money. To get even more money the company needs to increase the profitability the sub-category by decreasing costs.
+
+Tables is the most unprofitable category. Products are expensive and most of the sales are motivated by a high discount (27%). 
+
+Supplies' and Fasteners' sales seem to be less motivated by the discount. The compagny should decrease the discount for these sub-categories, this measure will increase the profitability but not impact the popularity of the products.
+
+We suggested to increase the sales of Envelops and Labels. Here we can see that their sales are not very motivated by the discount which is very low (<10%). The company can try to propose a higher discount too increase sales. The profitability will remain high and these sub-categories will probably bring more money.  
+
+#### Association rules
+
+We want to know if some unprofitable sub-categories can push the consumer to buy products in profitable sub-categories. To know it we will apply the method of association rules to our database. First, we create a list of baskets.
+
+my_list=[]
+for x in (df['Order ID'].unique()):
+    subdf=df[df['Order ID']==x]
+    my_list.append([str(df.values[j,16]) for j in range(0,len(subdf))])
+
+print(my_list[0])
+
+For exemple, the first basket is composed of products from 2 sub-categories : Bookcases and Chairs.
+
+num=[]
+for x in my_list:
+    num.append(len(x))
+
+len(num)
+
+min(num)
+
+max(num)
+
+Number of orders in 4 years : 5009.
+
+Consumer buy between 1 and 14 different (different sub-categories) products by order.
+
+pip install apyori
+
+import numpy as np
+import pandas as pd
+from apyori import apriori
+
+Then we use the apriori algorithm. The minimum support is 0.0068 (the less popular sub-category was sold 68 times, in total there are 9994 orders, 66/9994=0.0068) and the minimum lift is 2 (A->B, the consumer buy A and B at least 2 times more ofter than B).
+
+association_rules=apriori(my_list, min_support=0.0068, min_lift=2, min_length=2, max_length=2)
+
+for item in association_rules:
+
+    # first index of the inner list
+    # Contains base item and add item
+    pair = item[0] 
+    items = [x for x in pair]
+    print("Rule: " + items[0] + " -> " + items[1])
+
+    #second index of the inner list
+    print("Support: " + str(item[1]))
+
+    #third index of the list located at 0th
+    #of the third index of the inner list
+
+    print("Confidence: " + str(item[2][0][2]))
+    print("Lift: " + str(item[2][0][3]))
+    print("=====================================")
+
+According to the results even though Tables are unprofitable sub-category, they are often bought with other profitable products like Chairs and Labels. It means that the company should keep the same strategy for this sub-category.
+
+Now let's increase the granularity and focus on products in the remaining unprofitable categories: Machines, Fasteners, Supplies and Bookcases.
+
+#### Analyse the profit of each product
+
+df_unprofitable=df[df['Sub-Category'].isin (['Machines', 'Bookcases', 'Supplies'])]
+profit_ratio_by_product=df_unprofitable.groupby(['Product Name','Sub-Category']).agg(Total_profit=('Profit','sum'),Total_sales=('Sales','sum')).reset_index()
+profit_ratio_by_product['Profit_ratio']=profit_ratio_by_product['Total_profit']/profit_ratio_by_product['Total_sales']
+profit_ratio_by_product=profit_ratio_by_product.sort_values(by='Profit_ratio',ascending=False)
+plt.figure( figsize=(16,8))
+sb.barplot(data=profit_ratio_by_product,x='Product Name',y='Profit_ratio', hue='Sub-Category',ci=None)
+
+Even though the graph seems to be very complicated we can easily read it. 
+Machines is a very diversified sub-category, however most of the product have negative profitability and other products are not profitable enough to increase the performance of this sub-category. The company should abandone the unfprofitable products and increase the popularity of products with high profit ratio. 
+
+Fasteners sub-category is important because the company sell machines and copiers. We can't don any significant changements in the business strategy of this sub-category (the price is already high and it can't be higher than the price of copiers/machines, the discount is low).  
+
+In Supplies sub-category most of the products are profitables. To increase the profitability of the sub-category the company should dicrease the discount and abandone the most unprofitable products.  
+
+Most of the bookcases are unprofitables. If we keep only profitable products, the choice will be very poor and the popularity of the category will drop down. This sub-category should be abandoned.
+
+# Order/Customer analysis
+
+## Data frame creation
+
+dataset=df
+dataset.columns = dataset.columns.str.replace(" ", "_")
+dataset.columns
+
+order=dataset.groupby('Order_ID').agg({'Order_Date':lambda x: x.iloc[0],'Customer_ID':lambda x: x.iloc[0],'Segment':lambda x: x.iloc[0],'State':lambda x: x.iloc[0],'Region':lambda x: x.iloc[0],"Category":"nunique","Sub-Category":"nunique","Sales":"sum","Quantity":"mean","Discount":"mean","Profit":"sum"}).reset_index()
+order['Profit_Ratio']=order.Profit/order.Sales
+order
+
+## Order
+
+order_seas=order.groupby(order['Order_Date'].dt.strftime('%Y-%m')).agg({'Order_ID':'count','Sales':'sum','Discount':'mean','Profit':'sum'}).reset_index()
+order_seas['Profit_Ratio']=order_seas.Profit/order_seas.Sales
+order_seas.rename(columns={'Order_ID':'Order_Count'},inplace=True)
+order_seas.Order_Date=pd.to_datetime(order_seas.Order_Date,format='%Y-%m')
+
+plt.figure(figsize = (20, 6))
+plt.subplot(1,2,1)
+chart=sb.lineplot(data=order_seas,x='Order_Date',y='Order_Count')
+
+plt.subplot(1,2,2)
+chart1=sb.lineplot(data=order_seas,x='Order_Date',y='Profit_Ratio', label='Profit Ratio')
+chart2=sb.lineplot(data=order_seas,x='Order_Date',y='Discount',label='Discount')
+
+chart.set_title("Number of Order by Date")
+chart1.set_title('Profit ratio over the months')
+
+plt.tight_layout()
+plt.show()
+
+According to the number of orders along the years, there are seasonality and trend. The trend shows that the number of order increases over the years. 
+Every year there is a huge amount of orders made in September, November and December. This can correspond to the start of the school (september), to the black friday (November) and Christmas (December). 
+If we compare to the Profit Ratio, it has been only three months negative overall, and only the first year.
+It seems the Profit Ratio is the higest when the number of orders is not at the maximun, more or less in february/march. Actually when the discount is the lowest, this is when the Profit Ratio is the highest.
+
+## Customer
+
+order['Date_Min']=order.Order_Date
+order.rename(columns={'Order_Date':'Date_Max'},inplace=True)
+
+customer=order.groupby("Customer_ID").agg({"Order_ID":"count","Date_Max":"max","Date_Min":"min","Segment":"unique","State":"unique","Region":"unique","Category":"mean","Sub-Category":"mean","Sales":"sum","Quantity":"mean","Discount":"mean","Profit":"sum"}).reset_index()
+customer
+
+customer.info()
+
+### Data enrichement with Last purchase, Loyalty, Frequency
+
+Today=df.Order_Date.max()
+
+customer['Last_Purchase']=Today-customer['Date_Max']
+
+customer['Loyalty']=Today-customer['Date_Min']
+
+customer['Frequency']=(customer.Date_Max-customer.Date_Min)/customer.Order_ID
+customer.Frequency= customer.Frequency/np.timedelta64(1, 'D')
+customer.Frequency=pd.to_numeric(customer.Frequency, downcast='integer')
+
+customer['Profit_Ratio']=customer.Profit/customer.Sales
+customer.Order_ID=customer.rename(columns={'Order_ID':'Order_Count'},inplace=True)
+customer.head()
+
+customer['Loyalty_year']=customer['Loyalty']/365
+#to get it in year, not in days
+
+plt.figure(figsize=(10,6))
+chart=sb.distplot(customer.Profit_Ratio,hist=True)
+chart.set_title("Profit Ratio distibution")
+plt.show()
+
+Most of the customers are "profitable" customer but some of them are not. Let's analyse the non profitable customer habits compared to the profitable one.
+
+customer_noprofit=customer[customer.Profit_Ratio<0]
+
+customer_profit=customer[customer.Profit_Ratio>=0]
+
+
+print('percentage no profitable customers:')
+print(len(customer_noprofit)/(len(customer_noprofit)+len(customer_profit)))
+
+
+Almost 20% of the customers are non profitable customers.
+
+plt.figure(figsize=(10,6))
+plt.subplot(1,2,1)
+chart=sb.distplot(customer_profit.Order_Count,hist=True,label='profitable')
+
+
+plt.subplot(1,2,1)
+chart1=sb.distplot(customer_noprofit.Order_Count,hist=True,label='non profitable')
+
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.title("order count distribution")
+plt.show()
+
+The non profitable customers tend to order a bit less (around 5) than the profitable ones (between 5 and 6).
+
+
+plt.figure(figsize=(10,6))
+plt.subplot(1,2,1)
+chart=sb.distplot(customer_profit.Loyalty_year,hist=True,label='profitable')
+
+
+plt.subplot(1,2,1)
+chart1=sb.distplot(customer_noprofit.Loyalty_year,hist=True,label='non profitable')
+
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.title("Loyalty distribution")
+
+plt.show()
+
+The loyalty, meaning when the cusomers did their first order is really similar. 
+
+plt.figure(figsize=(10,6))
+plt.subplot(1,2,1)
+chart=sb.distplot(customer_profit.Category,hist=True,label='profitable')
+
+
+plt.subplot(1,2,1)
+chart1=sb.distplot(customer_noprofit.Category,hist=True,label='non profitable')
+
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.title("Number of Category distribution")
+
+plt.show()
+
+
+In average both type of customers order 1.5 different category of product. 
+
+
+plt.figure(figsize=(10,6))
+plt.subplot(1,2,1)
+chart=sb.distplot(customer_profit.Frequency,hist=True,label='profitable')
+
+
+plt.subplot(1,2,1)
+chart1=sb.distplot(customer_noprofit.Frequency,hist=True,label='non profitable')
+
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.title("Frequency distribution")
+
+plt.show()
+
+
+The frequency represents the average number of days which separate each purchase from one customer.
+We can see that the "bell" is more spread with the non profitable customers than the profitable ones eventhough the median is more or less the same (175 days).
+
+plt.figure(figsize=(10,6))
+plt.subplot(1,2,1)
+chart=sb.distplot(customer_profit.Sales,hist=True,label='profitable')
+
+
+plt.subplot(1,2,1)
+chart1=sb.distplot(customer_noprofit.Sales,hist=True,label='non profitable')
+
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.title("Sales distribution")
+
+plt.show()
+
+
+The sales distribution is really similar. It does not differenciate the two customer types. 
+
+customer_profit['Segment'] = [''.join(map(str, l)) for l in customer_profit['Segment']]
+customer_noprofit['Segment'] = [''.join(map(str, l)) for l in customer_noprofit['Segment']]
+
+import numpy as np
+
+labels = ['Consumer', 'Corporate', 'Home Office']
+customer_profit['Segment'].value_counts(sort=True,normalize=True)
+customer_noprofit['Segment'].value_counts(sort=True,normalize=True)
+
+x = np.arange(len(labels))  # the label locations
+width = 0.35  # the width of the bars
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, customer_profit['Segment'].value_counts(sort=True,normalize=True), width, label='Profitable')
+rects2 = ax.bar(x + width/2, customer_noprofit['Segment'].value_counts(sort=True,normalize=True), width, label='Non Profitable')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Ratio %')
+ax.set_title('Segment Ratio by type of customer')
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.legend()
+plt.show()
+
+The corporate customers are in the same proportion in the non profitable and profitable customers. But in the non profitable customers there are more "consumer" and less "home office" customers. It can have an impact on the profitability because the consumers buy cheaper products. 
+
+customer_profit_segcount=customer_profit.groupby('Segment').Order_Count.mean().reset_index()
+customer_noprofit_segcount=customer_noprofit.groupby('Segment').Order_Count.mean().reset_index()
+
+labels = ['Consumer', 'Corporate', 'Home Office']
+x = np.arange(len(labels))  # the label locations
+width = 0.35  # the width of the bars
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, customer_profit_segcount['Order_Count'], width, label='Profitable')
+rects2 = ax.bar(x + width/2, customer_noprofit_segcount['Order_Count'], width, label='Non Profitable')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Number of Order')
+ax.set_title('Number of order by type of customer')
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.legend()
+plt.show()
+
+
+
+Moreover in each category of customers, the non profitable customers order less than the profitable ones. That might be a cause of non profitability. 
+
+
+plt.figure(figsize=(10,6))
+plt.subplot(1,2,1)
+chart=sb.distplot(customer_profit.Discount,hist=True,label='profitable')
+
+
+plt.subplot(1,2,1)
+chart1=sb.distplot(customer_noprofit.Discount,hist=True,label='non profitable')
+
+plt.legend(loc="upper left")
+plt.tight_layout()
+plt.title("Discount distribution")
+
+plt.show()
+
+
+The main factor that distinguishes the two profiles of customers is the average discount. 
+The less profitable customers buy with a hight pourcentage of discount, around 20% discount.
+Thoses customers can be considered as opportunists because they buy only products which have a consequent discount. 
+
+
+
+### Recommandations after the customer analysis
+
+The customer analysis revealed that 20% of A-to-Z Market's customers are non profitable. Among them there are more customers considered as "Consumer" and less "Home office" customers. Moreover they order with an average discount of 20%.
+It corroborates the analysis made earlier. The "Consumer" customers buy especially products from the furniture category. This is the less profitable category of products.
+
+
+In order to increase the profitability, we recommand to decrease the costs. Decreasing the cost of shipping by increasing the number of unit ordered and at the same time negociate with the providers a discount after a certain amount of unit bought.
+
+To turn non profitable customers into profitable one, we recommand to improve the recommandation engine of the website to propose them profitable products without discount. At the same time it would be worth running an emailing campaign to attrack them with discount as they react positively to it. Doing that will increase their number of order. 
+
+# Conclusion
+
+
+After deeply analysing the performance of each product category, here are our recommandations:
+
+- Paper is a very popular and cheap product with very high profitability. This sub-category is performing well, but in avarage people buy 3 products by order. Because paper is very cheap and popular product, the company can easily increase the average number of units by order. For example, the company can propose 2+1 and 5+2 discount.
+
+- The popularity of Binders is due to the discount. The company should keep the same commercial stategy for this sub-category because the high discount increases the sales and brings profit.
+
+- The profitability and the popularity of Bookcases are low. To increase the profitability the company needs to increase price (but it is already high) or dicrease the discount (but most of the buyers seem to be motivated by the high discount which is around 20%). Moreover, most of the bookcases are unprofitables. If we keep only profitable products, the choice will be very poor and the popularity of the category will drop down. This sub-category should be abandoned.
+
+- Most of the sales of Copiers are motivated by the discount. This sub-categoty is already very profitable but not enough popular. The average discount is 16%, the company can increase the discount even more to motivate people to buy more copiers. The products will remain profitable and bring more money to the company.
+
+- We said that Chairs are expensive products and have relativly high discount (17%), we can see that most of the sales are motivated by the discount. This category is very important for the company because it brings a lot of money. To get even more money the company needs to increase the profitability of the sub-category by decreasing costs. 
+
+- Tables is the most unprofitable category. Products are expensive and most of the sales are motivated by a high discount (27%). But according to the association rules even though Tables are unprofitable sub-category, they are often bought with other profitable products like Chairs and Labels. It means that the company should keep the same strategy for this sub-category.
+
+- Machines is a very diversified sub-category, however most of the product have negative profitability and other products are not profitable enough to increase the performance of this sub-category. The company should abandone the unfprofitable products and increase the popularity of products with high profit ratio.
+
+In addition to these recommandations for some categories, A-to-Z Market should also focus on their customers and develop different strategies according to their profile. 
+
+- Some customers are more receptive to discount than others and buy only when there is a discount. They can become non profitable customers as the discount reduces a lot the profitability. To turn non profitable customers into profitable one, we recommand to improve the recommandation engine of the website to propose them profitable products without discount. At the same time it would be worth running an emailing campaign to attrack them with discount as they react positively to it. Doing that will increase their number of orders.
+
+In order to increase the profitability, we recommand to decrease the costs. Decreasing the cost of shipping by increasing the number of unit ordered and at the same time negociate with the providers a discount after a certain amount of unit bought.
+
+
